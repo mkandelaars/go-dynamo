@@ -4,6 +4,8 @@ import (
     "fmt"
     "os"
     "time"
+    "log"
+    "net/http"
 
     "github.com/aws/aws-sdk-go/aws"
     "github.com/aws/aws-sdk-go/aws/session"
@@ -13,8 +15,10 @@ import (
 
 type Item struct {
     Name string`json:"Name"`
-    LastWrite string`json:"LastWrite"`
+    Message string`json:"Message"`
 }
+
+var dynamodbClient *dynamodb.DynamoDB
 
 func main() {
 
@@ -38,7 +42,7 @@ func main() {
         fmt.Println("TABLE_NAME environment var is missing")
         os.Exit(1)
     }
-    
+
     // Initialize a session
     sess, err := session.NewSession(&aws.Config{
         Region: aws.String(os.Getenv("AWS_REGION"))},
@@ -50,28 +54,61 @@ func main() {
     }
 
     // Create DynamoDB client
-    svc := dynamodb.New(sess)
+    dynamodbClient = dynamodb.New(sess)
 
-    for {
-        item := Item{
-            Name: os.Getenv("APP_NAME"),
-            LastWrite: time.Now().Format(time.RFC850),
-        }
-        av, err := dynamodbattribute.MarshalMap(item)
-    
-        input := &dynamodb.PutItemInput{
-            Item: av,
-            TableName: aws.String(os.Getenv("TABLE_NAME")),
-        }
-        
-        _, err = svc.PutItem(input)
-    
-        if err != nil {
-            fmt.Println("Got error calling PutItem:")
-            fmt.Println(err.Error())
-            os.Exit(1)
-        }
+    http.HandleFunc("/write", writeHandler)
+    http.HandleFunc("/read", readHandler)
+    log.Fatal(http.ListenAndServe(":80", nil))
+}
 
-        time.Sleep(5 * time.Second)
+
+// Read the SERVICE index from the TABLE_NAME
+func readHandler(w http.ResponseWriter, r *http.Request) {
+    result, err := dynamodbClient.GetItem(&dynamodb.GetItemInput{
+        TableName: aws.String(os.Getenv("TABLE_NAME")),
+        Key: map[string]*dynamodb.AttributeValue{
+            "Name": {
+                S: aws.String("SERVICE"),
+            },
+        },
+    })
+    
+    if err != nil {
+        fmt.Println(err.Error())
+        return
+    }
+    
+    item := Item{}
+    
+    err = dynamodbattribute.UnmarshalMap(result.Item, &item)
+
+    // Return the Message
+    fmt.Fprintf(w, item.Message)
+}
+
+// Write to the SERVICE index 
+func writeHandler(w http.ResponseWriter, r *http.Request) {
+    message := r.URL.Query().Get("message")
+    if message == "" {
+        message = time.Now().Format(time.RFC850)
+    }
+    item := Item{
+        // Name: os.Getenv("APP_NAME"),
+        Name: "SERVICE",
+        Message: message,
+    }
+    av, err := dynamodbattribute.MarshalMap(item)
+
+    input := &dynamodb.PutItemInput{
+        Item: av,
+        TableName: aws.String(os.Getenv("TABLE_NAME")),
+    }
+    
+    _, err = dynamodbClient.PutItem(input)
+
+    if err != nil {
+        fmt.Println("Got error calling PutItem:")
+        fmt.Println(err.Error())
+        os.Exit(1)
     }
 }
