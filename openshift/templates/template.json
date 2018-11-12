@@ -1,0 +1,221 @@
+{
+    "kind": "Template",
+    "apiVersion": "v1",
+    "metadata": {
+      "name": "go-dynamo",
+      "annotations": {
+        "openshift.io/display-name": "Go Dynamo",
+        "description": "Blah blah blah",
+        "openshift.io/long-description": "blah blah blah",
+        "openshift.io/provider-display-name": "",
+        "template.openshift.io/bindable": "false"
+      }
+    },
+    "message": "The following service(s) have been created in your project: ${NAME}.\n",
+    "labels": {
+        "template": "go-dynamo-example",
+        "app": "go-dynamo-example"
+    },
+    "objects": [
+      {
+        "kind": "Secret",
+        "apiVersion": "v1",
+        "metadata": {
+          "name": "${NAME}"
+        },
+        "stringData" : {
+          "AWS_ACCESS_KEY_ID" : "${AWS_ACCESS_KEY_ID}",
+          "AWS_SECRET_ACCESS_KEY" : "${AWS_SECRET_ACCESS_KEY}"
+        }
+      },
+      {
+        "kind": "ImageStream",
+        "apiVersion": "v1",
+        "metadata": {
+          "name": "${NAME}",
+          "annotations": {
+            "description": "Keeps track of changes in the application image"
+          }
+        }
+      },
+      {
+        "kind": "BuildConfig",
+        "apiVersion": "v1",
+        "metadata": {
+          "name": "${NAME}",
+          "annotations": {
+            "description": "Defines how to build the application",
+            "template.alpha.openshift.io/wait-for-ready": "true"
+          }
+        },
+        "spec": {
+          "output": {
+            "to": {
+              "kind": "ImageStreamTag",
+              "name": "go-dynamo:latest"
+            },
+          },
+          "source": {
+            "type": "Git",
+            "git": {
+              "uri": "https://github.com/mkandelaars/go-dynamo.git",
+            },
+          },
+          "strategy": {
+            "dockerStrategy": {
+              "from": {
+                "kind": "ImageStreamTag",
+                "name": "golang:1.11-alpine"
+              },
+            }
+          },
+          "triggers": [
+            {
+              "type": "ImageChange"
+            },
+            {
+              "type": "ConfigChange"
+            },
+            {
+              "type": "GitHub",
+              "github": {
+                "secret": "${GITHUB_WEBHOOK_SECRET}"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "kind": "DeploymentConfig",
+        "apiVersion": "v1",
+        "metadata": {
+          "name": "${NAME}",
+          "annotations": {
+            "description": "Defines how to deploy the application server",
+            "template.alpha.openshift.io/wait-for-ready": "true"
+          }
+        },
+        "spec": {
+          "strategy": {
+            "type": "Rolling"
+          },
+          "triggers": [
+            {
+              "type": "ImageChange",
+              "imageChangeParams": {
+                "automatic": true,
+                "containerNames": [
+                  "go-dynamo-1"
+                ],
+                "from": {
+                  "kind": "ImageStreamTag",
+                  "name": "go-dynamo:latest"
+                }
+              }
+            },
+            {
+              "type": "ConfigChange"
+            }
+          ],
+          "replicas": 1,
+          "selector": {
+            "name": "${NAME}"
+          },
+          "template": {
+            "metadata": {
+              "name": "${NAME}",
+              "labels": {
+                "name": "${NAME}"
+              }
+            },
+            "spec": {
+              "containers": [
+                {
+                  "name": "go-dynamo-1",
+                  "image": " ",
+                  "env": [
+                    {
+                      "name": "APP_NAME",
+                      "value": "App-1"
+                    },
+                    {
+                      "name": "AWS_REGION",
+                      "value": "${AWS_REGION}"
+                    },
+                    {
+                      "name": "TABLE_NAME",
+                      "value": "${DYNAMODB_TABLE_NAME}"
+                    },
+                    {
+                      "name": "AWS_ACCESS_KEY_ID",
+                      "valueFrom": {
+                        "secretKeyRef" : {
+                          "name" : "${NAME}",
+                          "key" : "AWS_ACCESS_KEY_ID"
+                        }
+                      }
+                    },
+                    {
+                      "name": "AWS_SECRET_ACCESS_KEY",
+                      "valueFrom": {
+                        "secretKeyRef" : {
+                          "name" : "${NAME}",
+                          "key" : "AWS_SECRET_ACCESS_KEY"
+                        }
+                      }
+                    },
+                  ],
+                  "resources": {
+                    "limits": {
+                      "memory": "128Mi"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": [
+      {
+        "name": "NAME",
+        "displayName": "Name",
+        "description": "The name assigned to all of the frontend objects defined in this template.",
+        "required": true,
+        "value": "go-dynamo"
+      },
+      {
+        "name": "AWS_ACCESS_KEY_ID",
+        "displayName": "AWS Secret Key ID",
+        "description": "",
+        "generate": "expression",
+        "from": "[a-zA-Z0-9]{40}",
+        "value": "<none>"
+      },
+      {
+        "name": "AWS_SECRET_ACCESS_KEY",
+        "displayName": "AWS Secret Access Key",
+        "description": "",
+        "generate": "expression",
+        "from": "[a-zA-Z0-9]{40}",
+        "value": "<none>"
+      },
+      {
+        "name": "DYNAMODB_TABLE_NAME",
+        "displayName": "DynamoDB Table Name",
+        "description": "This must exist for the pod to run correctly",
+        "generate": "expression",
+        "from": "[a-zA-Z0-9]{40}",
+        "value": "DemoTable"
+      },
+      {
+        "name": "AWS_REGION",
+        "displayName": "AWS Region",
+        "description": "AWS Region",
+        "generate": "expression",
+        "from": "[a-zA-Z0-9]{40}",
+        "value": "us-east-2"
+      }
+    ]
+  }
