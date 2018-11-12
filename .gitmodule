@@ -1,0 +1,3 @@
+[submodule "AWSGolangSDK"]
+    path = dist/github.com/aws/
+    url = git://github.com/aws/aws-sdk-go.git
