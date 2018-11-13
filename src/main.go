@@ -64,6 +64,8 @@ func main() {
 
 // Read the SERVICE index from the TABLE_NAME
 func readHandler(w http.ResponseWriter, r *http.Request) {
+    enableCors(&w)
+    
     result, err := dynamodbClient.GetItem(&dynamodb.GetItemInput{
         TableName: aws.String(os.Getenv("TABLE_NAME")),
         Key: map[string]*dynamodb.AttributeValue{
@@ -88,6 +90,8 @@ func readHandler(w http.ResponseWriter, r *http.Request) {
 
 // Write to the SERVICE index 
 func writeHandler(w http.ResponseWriter, r *http.Request) {
+    enableCors(&w)
+
     message := r.URL.Query().Get("message")
     if message == "" {
         message = time.Now().Format(time.RFC850)
@@ -111,4 +115,7 @@ func writeHandler(w http.ResponseWriter, r *http.Request) {
         fmt.Println(err.Error())
         os.Exit(1)
     }
+}
+func enableCors(w *http.ResponseWriter) {
+	(*w).Header().Set("Access-Control-Allow-Origin", "*")
 }
