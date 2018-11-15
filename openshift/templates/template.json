@@ -2,11 +2,11 @@
     "kind": "Template",
     "apiVersion": "v1",
     "metadata": {
-      "name": "go-dynamo",
+      "name": "np-demo",
       "annotations": {
-        "openshift.io/display-name": "Go Dynamo",
-        "description": "Blah blah blah",
-        "openshift.io/long-description": "blah blah blah",
+        "openshift.io/display-name": "Network Policy Demo",
+        "description": "Two Go Microservices that read/write to a DynamoDB",
+        "openshift.io/long-description": "Two Go Microservices that read/write to a DynamoDB",
         "openshift.io/provider-display-name": "",
         "template.openshift.io/bindable": "false"
       }
@@ -28,6 +28,84 @@
           "AWS_SECRET_ACCESS_KEY" : "${AWS_SECRET_ACCESS_KEY}"
         }
       },
+      
+
+
+
+      {
+        "kind": "Service",
+        "apiVersion": "v1",
+        "metadata": {
+          "name": "${NAME}-reader",
+          "annotations": {
+            "description": "Exposes and load balances the application pods"
+          }
+        },
+        "spec": {
+          "ports": [
+            {
+              "name": "web",
+              "port": 80,
+              "targetPort": 80
+            }
+          ],
+          "selector": {
+            "name": "${NAME}-reader"
+          }
+        }
+      },
+      {
+        "kind": "Route",
+        "apiVersion": "v1",
+        "metadata": {
+          "name": "${NAME}-reader"
+        },
+        "spec": {
+          "host": "",
+          "to": {
+            "kind": "Service",
+            "name": "${NAME}-reader"
+          }
+        }
+      },
+      {
+          "kind": "Service",
+          "apiVersion": "v1",
+          "metadata": {
+            "name": "${NAME}-writer",
+            "annotations": {
+              "description": "Exposes and load balances the application pods"
+            }
+          },
+          "spec": {
+            "ports": [
+              {
+                "name": "web",
+                "port": 80,
+                "targetPort": 80
+              }
+            ],
+            "selector": {
+              "name": "${NAME}-writer"
+            }
+          }
+        },
+        {
+          "kind": "Route",
+          "apiVersion": "v1",
+          "metadata": {
+            "name": "${NAME}-writer"
+          },
+          "spec": {
+            "host": "",
+            "to": {
+              "kind": "Service",
+              "name": "${NAME}-writer"
+            }
+          }
+        },
+
+
       {
         "kind": "ImageStream",
         "apiVersion": "v1",
@@ -89,7 +167,7 @@
         "kind": "DeploymentConfig",
         "apiVersion": "v1",
         "metadata": {
-          "name": "${NAME}",
+          "name": "${NAME}-reader",
           "annotations": {
             "description": "Defines how to deploy the application server",
             "template.alpha.openshift.io/wait-for-ready": "true"
@@ -105,7 +183,7 @@
               "imageChangeParams": {
                 "automatic": true,
                 "containerNames": [
-                  "go-dynamo-1"
+                  "go-dynamo-reader"
                 ],
                 "from": {
                   "kind": "ImageStreamTag",
@@ -119,24 +197,130 @@
           ],
           "replicas": 1,
           "selector": {
-            "name": "${NAME}"
+            "name": "${NAME}-reader"
           },
           "template": {
             "metadata": {
-              "name": "${NAME}",
+              "name": "${NAME}-reader",
               "labels": {
-                "name": "${NAME}"
+                "name": "${NAME}-reader"
+              },
+              "annotations": {
+                "opencontrail.org/network": "{
+                  'domain': 'default-domain',
+                  'project': 'k8s-np-demo',
+                  'name': 'reader-network'
+                }"
               }
             },
             "spec": {
               "containers": [
                 {
-                  "name": "go-dynamo-1",
+                  "name": "go-dynamo-reader",
                   "image": " ",
                   "env": [
                     {
                       "name": "APP_NAME",
-                      "value": "App-1"
+                      "value": "App-reader"
+                    },
+                    {
+                      "name": "AWS_REGION",
+                      "value": "${AWS_REGION}"
+                    },
+                    {
+                      "name": "TABLE_NAME",
+                      "value": "${DYNAMODB_TABLE_NAME}"
+                    },
+                    {
+                      "name": "AWS_ACCESS_KEY_ID",
+                      "valueFrom": {
+                        "secretKeyRef" : {
+                          "name" : "${NAME}",
+                          "key" : "AWS_ACCESS_KEY_ID"
+                        }
+                      }
+                    },
+                    {
+                      "name": "AWS_SECRET_ACCESS_KEY",
+                      "valueFrom": {
+                        "secretKeyRef" : {
+                          "name" : "${NAME}",
+                          "key" : "AWS_SECRET_ACCESS_KEY"
+                        }
+                      }
+                    },
+                  ],
+                  "resources": {
+                    "limits": {
+                      "memory": "128Mi"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+
+      {
+        "kind": "DeploymentConfig",
+        "apiVersion": "v1",
+        "metadata": {
+          "name": "${NAME}-writer",
+          "annotations": {
+            "description": "Defines how to deploy the application server",
+            "template.alpha.openshift.io/wait-for-ready": "true"
+          }
+        },
+        "spec": {
+          "strategy": {
+            "type": "Rolling"
+          },
+          "triggers": [
+            {
+              "type": "ImageChange",
+              "imageChangeParams": {
+                "automatic": true,
+                "containerNames": [
+                  "go-dynamo-writer"
+                ],
+                "from": {
+                  "kind": "ImageStreamTag",
+                  "name": "go-dynamo:latest"
+                }
+              }
+            },
+            {
+              "type": "ConfigChange"
+            }
+          ],
+          "replicas": 1,
+          "selector": {
+            "name": "${NAME}-writer"
+          },
+          "template": {
+            "metadata": {
+              "name": "${NAME}-writer",
+              "labels": {
+                "name": "${NAME}-writer"
+              },
+              "annotations": {
+                "opencontrail.org/network": "{
+                  'domain': 'default-domain',
+                  'project': 'k8s-np-demo',
+                  'name': 'writer-network'
+                }"
+              }
+            },
+            "spec": {
+              "containers": [
+                {
+                  "name": "go-dynamo-writer",
+                  "image": " ",
+                  "env": [
+                    {
+                      "name": "APP_NAME",
+                      "value": "App-writer"
                     },
                     {
                       "name": "AWS_REGION",
@@ -215,7 +399,7 @@
         "description": "AWS Region",
         "generate": "expression",
         "from": "[a-zA-Z0-9]{40}",
-        "value": "us-east-2"
+        "value": "ap-northeast-1"
       }
     ]
   }
