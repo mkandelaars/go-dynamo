@@ -65,12 +65,17 @@ func main() {
 // Read the SERVICE index from the TABLE_NAME
 func readHandler(w http.ResponseWriter, r *http.Request) {
     enableCors(&w)
+
+    instanceid := r.URL.Query().Get("instanceid")
+    if instanceid == "" {
+        instanceid = "SERVICE"
+    }
     
     result, err := dynamodbClient.GetItem(&dynamodb.GetItemInput{
         TableName: aws.String(os.Getenv("TABLE_NAME")),
         Key: map[string]*dynamodb.AttributeValue{
             "Name": {
-                S: aws.String(r.URL.Query().Get("instanceid")),
+                S: aws.String(instanceid),
             },
         },
     })
@@ -92,14 +97,21 @@ func readHandler(w http.ResponseWriter, r *http.Request) {
 func writeHandler(w http.ResponseWriter, r *http.Request) {
     enableCors(&w)
 
+
+
     message := r.URL.Query().Get("message")
     if message == "" {
         message = time.Now().Format(time.RFC850)
     }
 
+    instanceid := r.URL.Query().Get("instanceid")
+    if instanceid == "" {
+        instanceid = "SERVICE"
+    }
+
     item := Item{
         // Name: os.Getenv("APP_NAME"),
-        Name: r.URL.Query().Get("instanceid"),
+        Name: instanceid,
         Message: message,
     }
     
