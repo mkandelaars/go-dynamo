@@ -70,7 +70,7 @@ func readHandler(w http.ResponseWriter, r *http.Request) {
         TableName: aws.String(os.Getenv("TABLE_NAME")),
         Key: map[string]*dynamodb.AttributeValue{
             "Name": {
-                S: aws.String("SERVICE"),
+                S: r.URL.Query().Get("id"),
             },
         },
     })
@@ -96,9 +96,10 @@ func writeHandler(w http.ResponseWriter, r *http.Request) {
     if message == "" {
         message = time.Now().Format(time.RFC850)
     }
+
     item := Item{
         // Name: os.Getenv("APP_NAME"),
-        Name: "SERVICE",
+        Name: r.URL.Query().Get("id"),
         Message: message,
     }
     av, err := dynamodbattribute.MarshalMap(item)
